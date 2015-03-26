@@ -1,63 +1,26 @@
 #!/usr/local/bin/python
 #-*- coding: utf-8 -*-
 
-import googlemaps
-from itertools import combinations
+# import googlemaps
+import logging
+from util import distance_by_latlng
 
 
-# all_waypoints = ["Beijing, China",
-#                  "Shijiazhuang, Hebei, China",
-#                  "Jinan, Shandong, China",
-#                  "Chengdu, Sichuan, China",
-#                  "Guangzhou, Guangdong, China",
-#                  "Hefei, Anhui, China",
-#                  "Zhengzhou, Henan, China"]
+def get_roadmap(points, point_type, dist_type):
+	n = len(points)
+	roadmap = [[0 for x in range(n)] for x in range(n)]
+	for i, p1 in enumerate(points):
+		for j, p2 in enumerate(points):
+			if j <= i: 
+				continue
+			if point_type == "latlng" and dist_type == "Euclidean":
+				# print i, j, distance_by_latlng(p1[0], p1[1], p2[0], p2[1])
+				roadmap[i][j] = roadmap[j][i] = distance_by_latlng(p1[0], p1[1], p2[0], p2[1])
+			elif point_type == "latlng" and dist_type == "Driving":
+				# use google api
+				pass
+			else:
+				logging.WARNING("unknown point type or distance type")
+				return None
 
-all_waypoints = ["北京",
-                 "石家庄",
-                 "济南",
-                 "成都",
-                 "广州",
-                 "合肥",
-                 "郑州"]
-
-gmaps = googlemaps.Client(key="AIzaSyBjlzNKt3fYpYbxtEgwbdVXheMGK3mPYqI")
-
-
-waypoint_distances = {}
-waypoint_durations = {}
-
-for (waypoint1, waypoint2) in combinations(all_waypoints, 2):
-    try:
-        print (waypoint1, waypoint2)
-        route = gmaps.distance_matrix(origins=[waypoint1],
-                                      destinations=[waypoint2],
-                                      mode="driving",
-                                      language="Chinese",
-                                      units="metric")
-
-        # "distance" is in meters
-        distance = route["rows"][0]["elements"][0]["distance"]["value"]
-
-        # "duration" is in seconds
-        duration = route["rows"][0]["elements"][0]["duration"]["value"]
-
-        waypoint_distances[frozenset([waypoint1, waypoint2])] = distance
-        waypoint_durations[frozenset([waypoint1, waypoint2])] = duration
-    
-    except Exception as e:
-        print("Error with finding the route between %s and %s." % (waypoint1, waypoint2))
-
-
-with open("my-waypoints-dist-dur.tsv", "wb") as out_file:
-    out_file.write("\t".join(["waypoint1",
-                              "waypoint2",
-                              "distance_m",
-                              "duration_s"]))
-    
-    for (waypoint1, waypoint2) in waypoint_distances.keys():
-        out_file.write("\n" +
-                       "\t".join([waypoint1,
-                                  waypoint2,
-                                  str(waypoint_distances[frozenset([waypoint1, waypoint2])]),
-                                  str(waypoint_durations[frozenset([waypoint1, waypoint2])])]))
+	return tuple(map(tuple, roadmap))

@@ -220,6 +220,7 @@ function remove_route_display()
 {
   hide_route_display();
   directionsDisplay = [];
+  bounds = null;
 }
 
 // Deletes all markers in the array by removing references to them.
@@ -232,8 +233,7 @@ function reset() {
 
 function display_routes(routes)
 {
-  hide_route_display();
-  directionsDisplay = [];
+  remove_route_display();
 
   for(var i = 0; i < routes.length; i++)
   {
@@ -241,7 +241,6 @@ function display_routes(routes)
     var short_route = [];
     var start = 0;
     var end = null;
-    // var cnt = 0;
     while (start < long_route.length - 1)
     {
       end = Math.min(start + 10, long_route.length);
@@ -257,8 +256,7 @@ function display_routes(routes)
 
 function display_route(route)
 { 
-  hide_route_display();
-  directionsDisplay = [];
+  remove_route_display()
 
   var short_route = [];
   var start = 0;
@@ -310,6 +308,7 @@ function calcRoute(route)
     directionsService.route(request, 
       function(response, status)
       {
+        console.log("directionsService status: ")
         console.log(status);
         if (status == google.maps.DirectionsStatus.OK)
         {
