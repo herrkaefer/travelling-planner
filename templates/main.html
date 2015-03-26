@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <meta charset="utf-8">
+    <title>Travelling Planner</title>
+ 
+    <style>
+      html, body, #map-canvas {
+        height: 100%;
+        margin: 0px;
+        padding: 0px
+      }
+      #panel {
+        position: absolute;
+        top: 5px;
+        left: 50%;
+        margin-left: -180px;
+        z-index: 5;
+        background-color: #ddd;
+        padding: 5px;
+        border: 1px solid #999;
+      }
+
+    </style>
+    <style>
+      #directions-panel {
+        height: 100%;
+        float: right;
+        width: 390px;
+        overflow: auto;
+      }
+
+      /*#map-canvas {
+        margin-right: 400px;
+      }*/
+
+      #control {
+        background: #fff;
+        padding: 5px;
+        font-size: 14px;
+        font-family: Arial;
+        border: 1px solid #ccc;
+        box-shadow: 0 2px 2px rgba(33, 33, 33, 0.4);
+        display: none;
+      }
+
+      @media print {
+        #map-canvas {
+          height: 500px;
+          margin: 0;
+        }
+
+        #directions-panel {
+          float: none;
+          width: auto;
+        }
+      }
+    </style>
+
+    <script src="https://maps.googleapis.com/maps/api/js?v=3.exp&signed_in=true&language=cn"></script>
+    <script>
+
+
+// define routes. They should be sent from server
+// var routes = [];
+// routes.push(["chicago, il", "st louis, mo", "joplin, mo", "oklahoma city, ok"]);
+// routes.push(["kingman, az", "san bernardino, ca", "barstow, ca"]);
+// routes.push(["北京", "上海", "成都", "呼和浩特"]);
+// routes.push(["石家庄", "广州", "昆明", "乌鲁木齐"]);
+// routes.push(["石家庄", "广州", "昆明", "乌鲁木齐", "深圳", "济南", "桂林", "贵州", "南宁", "厦门", "杭州"]);
+// routes.push(["石家庄", "广州", "昆明", "乌鲁木齐", "深圳", "济南", "桂林", "贵州", "南宁", "厦门", "杭州", "无锡", "南京"]);
+
+
+var markerOptions = {
+  visible: false
+  // icon: "http://maps.gstatic.com/mapfiles/markers2/marker.png",
+  // draggable: true, // could be draggable during editing, undraggable after optimization
+  // animation: google.maps.Animation.DROP, // does work fine
+};
+
+var directionsDisplayOptions = 
+{
+  preserveViewport: true, 
+  markerOptions: markerOptions
+  // suppressMarkers: true,
+};
+
+// var chicago = new google.maps.LatLng(41.850033, -87.6500523);
+// var beijing = new google.maps.LatLng(39.9388838,116.3974589);
+var mapOptions = {
+  zoom: 7,
+  center: new google.maps.LatLng(39.9388838,116.3974589),
+  mapTypeControl: true,
+  mapTypeControlOptions: {
+    style: google.maps.MapTypeControlStyle.DEFAULT,
+    mapTypeIds: [
+      google.maps.MapTypeId.ROADMAP,
+      google.maps.MapTypeId.TERRAIN
+    ]
+  },
+  zoomControl: true,
+  zoomControlOptions: {
+  style: google.maps.ZoomControlStyle.SMALL
+  }
+};
+
+
+var map = null;
+var bounds = null;
+var markers = []; // save markers for points
+var infowindows = []; // save infowindows for markers
+var points = [];
+var directionsDisplay = [];
+var directionsService = null;
+
+
+function initialize()
+{
+  map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
+  directionsService = new google.maps.DirectionsService();
+  
+  // when editing, click the map to add route points
+  google.maps.event.addListener(map, 'click', function(event) {
+    add_point(event.latLng); // test: add to the first route    
+  });
+}
+
+
+function add_point(position)
+{
+  points.push(position);
+  add_marker(position);
+}
+
+
+function add_marker(location)
+{
+  var marker = new google.maps.Marker({
+      position: location,
+      map: map,
+      draggable: true
+  });
+  markers.push(marker);
+
+  point_index = markers.length - 1
+
+  var infowindow = new google.maps.InfoWindow({
+        content: marker.position.toString(),
+        size: new google.maps.Size(50,50)
+      });
+  infowindows.push(infowindow);
+
+  (function(index){
+    google.maps.event.addListener(marker, 'click', 
+      function(){
+        infowindows[index].setContent(index.toString()+": "+marker.position.toString());
+        infowindows[index].open(map, marker);
+    })
+  })(point_index);
+
+  (function(index){
+    google.maps.event.addListener(marker, 'dragend', 
+      function(event){
+        marker.position = event.latLng;
+        infowindows[index].setContent(index.toString()+": "+marker.position.toString());
+        points[index] = event.latLng;
+        console.log(points[index])
+    })
+  })(point_index);
+
+}
+
+// Sets the map on all markers in the array.
+function set_markers_map(map) {
+  for (var i = 0; i < markers.length; i++) {
+    markers[i].setMap(map);
+  }
+}
+
+// Removes the markers from the map, but keeps them in the array.
+function hide_markers() {
+  // set_all_map(null);
+  for (var i = 0; i < markers.length; i++) {
+    markers[i].setVisible(false);
+  }
+}
+
+// Shows any markers currently in the array.
+function show_markers() {
+  // set_all_map(map);
+  for (var i = 0; i < markers.length; i++) {
+    markers[i].setVisible(true);
+  }
+}
+
+function remove_markers(){
+  set_markers_map(null);
+  markers = [];
+}
+
+function set_route_display_map(map)
+{
+  for (var i = 0; i < directionsDisplay.length; i++) {
+    directionsDisplay[i].setMap(map);
+  }
+}
+
+function hide_route_display()
+{
+  set_route_display_map(null);
+}
+
+function show_route_display()
+{
+  set_route_display_map(map);
+}
+
+function remove_route_display()
+{
+  hide_route_display();
+  directionsDisplay = [];
+}
+
+// Deletes all markers in the array by removing references to them.
+function reset() {
+  remove_markers();
+  infowindows = [];
+  remove_route_display();
+  points = [];
+}
+
+function display_routes(routes)
+{
+  hide_route_display();
+  directionsDisplay = [];
+
+  for(var i = 0; i < routes.length; i++)
+  {
+    var long_route = routes[i];
+    var short_route = [];
+    var start = 0;
+    var end = null;
+    // var cnt = 0;
+    while (start < long_route.length - 1)
+    {
+      end = Math.min(start + 10, long_route.length);
+      short_route = long_route.slice(start, end);
+      // console.log(short_route)
+      calcRoute(short_route);
+      start = end - 1;
+    }
+  }
+  console.log(directionsDisplay.length)
+}
+
+
+function display_route(route)
+{ 
+  hide_route_display();
+  directionsDisplay = [];
+
+  var short_route = [];
+  var start = 0;
+  var end = null;
+  while (start < route.length - 1)
+  {
+    if (start == route.length - 2 && route[start] == route[start+1]){
+      break;
+    }
+    end = Math.min(start + 10, route.length);
+    short_route = route.slice(start, end);
+    console.log(short_route)
+    calcRoute(short_route);
+    start = end - 1;
+  }
+  console.log(directionsDisplay.length)
+}
+
+
+// @param route should include no more than 10 points
+function calcRoute(route)
+{
+  // add an instance of DirectionsRenderer
+  directionsDisplay.push(new google.maps.DirectionsRenderer(directionsDisplayOptions));
+  var index_display = directionsDisplay.length - 1;
+  directionsDisplay[index_display].setMap(map);
+  // directionsDisplay[index_display].setPanel(document.getElementById('directions-panel'));
+  
+  // calc directions of route and display
+  // use closure to pass index_display to callback of directionsService.route
+  (function(ind_display)
+  {
+    var start = points[route[0]];
+    var end = points[route[route.length-1]];
+    var waypts = [];
+    for (var j = 1; j < route.length-1; j++)
+    {
+      waypts.push({location: points[route[j]], stopover: true});
+    }
+    var request = 
+    {
+        origin: start,
+        destination: end,
+        waypoints: waypts,
+        optimizeWaypoints: false,
+        travelMode: google.maps.TravelMode.DRIVING
+    };
+
+    directionsService.route(request, 
+      function(response, status)
+      {
+        console.log(status);
+        if (status == google.maps.DirectionsStatus.OK)
+        {
+            // adjust view bounds of map
+            if (!bounds)
+              bounds = response.routes[0].bounds;
+            else
+              bounds.union(response.routes[0].bounds);
+            map.fitBounds(bounds);
+            directionsDisplay[ind_display].setDirections(response);
+        }
+      });      
+  })(index_display);
+}
+
+
+function cal_tsp_route()
+{
+  if (points.length <= 1)
+  {
+    alert("not enough points provided");
+    return;
+  }
+
+  var xmlhttp = new XMLHttpRequest();
+  xmlhttp.onreadystatechange = function() {
+    if (xmlhttp.readyState==4 && xmlhttp.status==200) {
+      // process response data
+      var route = JSON.parse(xmlhttp.responseText);
+      console.log(route);
+      display_route(route);
+      // hide_markers();
+    }
+  }
+
+  // send points to server
+  xmlhttp.open("POST", "/", true);
+  xmlhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+  var data = "points=";
+  console.log(points);
+  for (var i = 0; i < points.length; i++)
+  {
+    if (i > 0) data += "-";
+    data += points[i].toString();
+  }
+  // alert(data);
+  xmlhttp.send(data);
+}
+
+
+google.maps.event.addDomListener(window, 'load', initialize);
+
+    </script>
+  </head>
+
+  <body>
+    <div id="panel">
+      <button onclick="cal_tsp_route();">Get Optimal Route</button>
+      <!-- <button onclick="reset();">Reset</button> -->
+      <input onclick="hide_markers();" type=button value="Hide Markers">
+      <input onclick="show_markers();" type=button value="Show Markers">
+      <input onclick="reset();" type=button value="Reset">
+    </div>
+    <!-- <div id="directions-panel"></div> -->
+    <div id="map-canvas"></div>
+  </body>
+</html>
