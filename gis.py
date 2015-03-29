@@ -1,10 +1,9 @@
 #!/usr/local/bin/python
 #-*- coding: utf-8 -*-
 
-# import googlemaps
+import googlemaps
 import logging
 from util import distance_by_latlng
-
 
 def get_roadmap(points, point_type, dist_type):
 	n = len(points)
